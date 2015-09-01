@@ -1,30 +1,47 @@
 import socket
 import threading
+import server_excep as ex
 
-class Server(object):
+class ChatServer(object):
 
-	def __init__(self,ip_address,port):
+	def __init__(self,port):
 
 		self.socket = socket.socket()
+		self.ip_addr = socket.gethostbyname(socket.getfqdn())
+		self.port = port
 		self.connections = {}
-		self.start_server(ip_address,port)
+		self.events = []
 
-	def start_server(self,ip_addr,port):
-		self.socket.bind((ip_addr,port))
-		self.socket.listen(5)
-		self.listen()
+	def start_server(self):
+		try:
+			self.socket.bind((self.ip_addr,self.port))
+			self.socket.listen(5)
+			self.listen_thread = threading.Thread(target = self.listen_clients)
+			self.listen_thread.daemon = True
+			self.listen_thread.start()
+		except socket.error:
+			raise ex.ConnectionError()
 
-	def listen(self):
+
+	def listen_clients(self):
+
 		while 1:
-			connection, addr = self.socket.accept()
-			self.connections[addr] = connection
-			self.handle_thraed = threading.Thread(target=self.handle_client,(addr,))
-			self.handle_thraed.start()
+			conn, addr = self.socket.accept()
+			self.connections[addr] = conn
+			thread = threading.Thread(target=self.handle_client,args = (addr,))
+			thread.start()
+			self.events.append('A new connection from ({}), starting a new thread\n'.format(addr))
 
 	def handle_client(self,addr):
 		while 1:
 			data = self.connections[addr].recv(1024)
 			if data:
-				print data
-			else:
-				continue
+				for address in self.connections:
+					if address != addr:
+						self.connections[address].sendall(data)
+
+	def stop_server(self):
+		self.socket.close()
+
+	def get_event(self):
+		return self.events.pop(0)
