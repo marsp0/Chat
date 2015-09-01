@@ -16,6 +16,7 @@ class Client(object):
 	def start(self):
 		try:
 			self.socket.connect((self.ip_addr,self.port))
+			self.socket.send(self.username)
 			thread = threading.Thread(target = self.handle_receive)
 			thread.daemon = True
 			thread.start()

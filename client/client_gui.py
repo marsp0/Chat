@@ -62,6 +62,7 @@ class ClientGui(tk.Frame):
 			username = self.check_username(self.username_var.get())
 			self.client = client.Client(ip_addr,port,username)
 			self.client.start()
+			self.handle_receive()
 			self.packer(self.login_frame,self.chat_view)
 		except ex.ConnectionError as e:
 			mb.showwarning('Connection Error','Could not connect to {}'.format(e.addr))
@@ -115,10 +116,14 @@ class ClientGui(tk.Frame):
 		tk.Label(self.user_info_frame,text=port,bd=2,relief='raised',width=15,pady=3).grid(row=3,column=2)
 
 	def send(self):
-		message = 'Me: ' + self.send_var.get() + '\n'
-		self.client.send(message)
-		self.display_message(message)
-		self.send_var.set('')
+		data = self.send_var.get()
+		if data == '':
+			pass
+		else:
+			self.client.send(data)
+			message = 'Me: ' + self.send_var.get() + '\n'
+			self.display_message(message)
+			self.send_var.set('')
 
 	def display_message(self,message):
 		self.text.config(state='normal')
@@ -128,7 +133,6 @@ class ClientGui(tk.Frame):
 	def handle_receive(self):
 		while self.client.messages:
 			to_display = self.client.messages.pop(0)
-			print to_display
 			self.display_message(to_display)
 		self.after(100,self.handle_receive)
 

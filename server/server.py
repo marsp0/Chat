@@ -10,6 +10,7 @@ class ChatServer(object):
 		self.ip_addr = socket.gethostbyname(socket.getfqdn())
 		self.port = port
 		self.connections = {}
+		self.users = {}
 		self.events = []
 
 	def start_server(self):
@@ -28,6 +29,9 @@ class ChatServer(object):
 		while 1:
 			conn, addr = self.socket.accept()
 			self.connections[addr] = conn
+			key = int(addr[0].split('.')[-1])
+			username = self.connections[addr].recv(1024)
+			self.users[key] = username
 			thread = threading.Thread(target=self.handle_client,args = (addr,))
 			thread.start()
 			self.events.append('A new connection from ({}), starting a new thread\n'.format(addr))
@@ -36,9 +40,11 @@ class ChatServer(object):
 		while 1:
 			data = self.connections[addr].recv(1024)
 			if data:
+				username = int(addr[0].split('.')[-1])
+				msg = '{}: {}'.format(self.users[username],data)
 				for address in self.connections:
 					if address != addr:
-						self.connections[address].sendall(data)
+						self.connections[address].sendall(msg)
 
 	def stop_server(self):
 		self.socket.close()
