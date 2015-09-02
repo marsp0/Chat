@@ -11,21 +11,21 @@ class ClientGui(tk.Frame):
 		tk.Frame.__init__(self,parent,*args,**kwargs)
 		self.master.minsize(width=600,height=400)
 		self.master.maxsize(width=600,height=400)
-		self.master.config(bg='grey')
-		self.config(pady=5,padx=5)
+		self.master.config(bg='grey',pady=4)
+		self.config()
 		self.pack()
 
 		#frames
 		self.login_frame = tk.Frame(self)
 		self.login_frame.pack()
 
-		self.chat_frame = tk.Frame(self)
+		self.chat_frame = tk.Frame(self,bg='grey')
 		self.chat_frame.pack()
 
-		self.right_frame = tk.Frame(self.chat_frame)
-		self.right_frame.grid(row=1,column=2)
+		self.right_frame = tk.Frame(self.chat_frame,bd=2,relief='raised')
+		self.right_frame.grid(row=1,column=2,sticky='n')
 
-		self.left_frame = tk.Frame(self.chat_frame,pady=4,padx=4)
+		self.left_frame = tk.Frame(self.chat_frame,pady=4,padx=4,bd=2,relief='raised')
 		self.left_frame.grid(row=1,column=1)
 
 		#vars
@@ -68,7 +68,7 @@ class ClientGui(tk.Frame):
 			mb.showwarning('Connection Error','Could not connect to {}'.format(e.addr))
 		except ex.InvalidPort as e:
 			mb.showwarning('Port Error','{}\n{}'.format(e.port,e.msg))
-		except ValueError:
+		except ValueError as e:
 			mb.showwarning('Port Error','The port has to be a number')
 		except ex.InvalidUsername:
 			mb.showwarning('Username Error','The username is invalid')
@@ -106,14 +106,25 @@ class ClientGui(tk.Frame):
 
 		#right frame
 		self.user_info_frame = tk.Frame(self.right_frame)
-		self.user_info_frame.pack(anchor='n')
+		self.user_info_frame.pack(anchor='n',fill='x')
 		username, ip_addr, port = self.client.get_credentials()
-		tk.Label(self.user_info_frame,text='Username',bd=2,relief='raised',width=15,pady=3).grid(row=1,column=1)
-		tk.Label(self.user_info_frame,text=username,bd=2,relief='raised',width=15,pady=3).grid(row=1,column=2)
-		tk.Label(self.user_info_frame,text='IP Address',bd=2,relief='raised',width=15,pady=3).grid(row=2,column=1)
-		tk.Label(self.user_info_frame,text=ip_addr,bd=2,relief='raised',width=15,pady=3).grid(row=2,column=2)
-		tk.Label(self.user_info_frame,text='Port',bd=2,relief='raised',width=15,pady=3).grid(row=3,column=1)
-		tk.Label(self.user_info_frame,text=port,bd=2,relief='raised',width=15,pady=3).grid(row=3,column=2)
+		tk.Label(self.user_info_frame,text='Your Info',width=31,pady=3).grid(row=1,column=1,columnspan=2)
+		tk.Label(self.user_info_frame,text=username,bd=2,relief='raised',width=31,pady=3).grid(row=2,column=1,columnspan=2)
+		tk.Label(self.user_info_frame,text='IP Address',bd=2,relief='raised',width=15,pady=3).grid(row=3,column=1)
+		tk.Label(self.user_info_frame,text=ip_addr,bd=2,relief='raised',width=15,pady=3).grid(row=3,column=2)
+		tk.Label(self.user_info_frame,text='Port',bd=2,relief='raised',width=15,pady=3).grid(row=4,column=1)
+		tk.Label(self.user_info_frame,text=port,bd=2,relief='raised',width=15,pady=3).grid(row=4,column=2)
+
+		self.friend_frame = tk.Frame(self.right_frame)
+		self.friend_frame.pack(anchor='n',fill='x')
+		tk.Label(self.friend_frame,text='Friends Online',pady=3).pack()
+		self.listbox = tk.Listbox(self.friend_frame)
+		self.listbox.pack()
+		self.handle_friends()
+
+		self.quit_frame = tk.Frame(self.right_frame)
+		self.quit_frame.pack(anchor='s')
+		tk.Button(self.quit_frame,text='Quit',command = self.quit).grid(row=1,column=1,sticky='se')
 
 	def send(self):
 		data = self.send_var.get()
@@ -121,7 +132,11 @@ class ClientGui(tk.Frame):
 			pass
 		else:
 			self.client.send(data)
-			message = 'Me: ' + self.send_var.get() + '\n'
+			if data.startswith('/w'):
+				message = 'PRIVATE TO {}: '.format(data.split()[1])
+				message += '{}\n'.format(' '.join(data.split()[2:]))
+			else:			
+				message = 'Me: ' + self.send_var.get() + '\n'
 			self.display_message(message)
 			self.send_var.set('')
 
@@ -136,6 +151,20 @@ class ClientGui(tk.Frame):
 			self.display_message(to_display)
 		self.after(100,self.handle_receive)
 
+	def handle_friends(self):
+		while self.client.friends:
+			current = self.client.friends.pop(0)
+			print self.client.friends
+			if current[0] == 'add':
+				for item in current[1]:
+					self.listbox.insert(tk.END,item)
+			elif current[0] == 'remove':
+				while current[1]:
+					lista = self.listbox.get(0,tk.END)
+					to_remove = current[1].pop(0)
+					self.listbox.delete(lista.index(to_remove))
+		self.after(1000,self.handle_friends)
+
 	''' HELPERS '''
 
 	def packer(self,to_unpack,to_pack):
@@ -145,6 +174,7 @@ class ClientGui(tk.Frame):
 		to_pack()
 
 	def quit(self):
+		self.client.quit()
 		self.master.quit()
 
 if __name__ == '__main__':
