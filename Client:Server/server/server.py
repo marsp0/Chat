@@ -12,6 +12,7 @@ class ChatServer(object):
 		self.connections = {}
 		self.users = {}
 		self.events = []
+		self.counter = 0
 
 	def start_server(self):
 		try:
@@ -31,11 +32,16 @@ class ChatServer(object):
 			conn, addr = self.socket.accept()
 			#save the connection socket
 			self.connections[addr] = conn
-			#use the sender host id to save his username
+			#use the sender host id and port as keys and his username and and address as values
 			key = '{}:{}'.format(addr[0].split('.')[-1], addr[1])
-			#get the username , which is the first thing that the client sends
+			#get the username
 			username = self.connections[addr].recv(1024)
-			#send all users before appending the current user
+			#if the usernameis already in the dict add 1 to it
+			for user in self.users:
+				if username == self.users[user][0]:
+					username += str(self.counter)
+					self.counter += 1
+			#send all users before appending the current user or None if he is the first to enter the room
 			if self.users:
 				users = [value[0] for value in self.users.values()]
 				users = ','.join(users)
@@ -43,8 +49,9 @@ class ChatServer(object):
 				self.connections[addr].sendall(users_packet)
 			else:
 				self.connections[addr].sendall('USERS:None')
-			self.broadcast('{} joined the room\n'.format(username),addr)
-			#save the username
+			#send the new user to the rest of the users
+			self.broadcast('USERS(add):{}'.format(username),addr)
+			#save the username and addr
 			self.users[key] = username,addr
 			#start the thread to handle this client
 			thread = threading.Thread(target=self.handle_client,args = (addr,))
@@ -55,13 +62,19 @@ class ChatServer(object):
 	def handle_client(self,addr):
 		while 1:
 			try:
+				#receive some data
 				data = self.connections[addr].recv(1024)
 				if data:
+					#get the key for the username dict
 					sender_id = '{}:{}'.format(addr[0].split('.')[-1],addr[1])
 					if data.startswith('MSG'):
+						#if its a noemal message, we prepare it and broadcast it to everyone
 						msg = '{}: {}'.format(self.users[sender_id][0],data[data.find(':')+1:])
 						self.broadcast(msg,addr)
 					elif data.startswith('PRIVATE'):
+						#if its a private message, we prepare the message and get the receiver's address from his username
+						#if we encounter an IndexError, that means that there is no such user in the room
+						#we send an error message to the sender
 						try:
 							receiver = [value[1] for value in self.users.values() if value[0] == data[data.find('(')+1: data.find(')')]][0]
 							msg = 'PRIVATE {}: {}'.format(self.users[sender_id][0],data[data.find(':')+1:])
@@ -70,15 +83,14 @@ class ChatServer(object):
 							msg = 'ERROR: The user you tried to message is not online\n'
 						self.broadcast(msg,addr,receiver)
 					elif data.startswith('QUIT'):
-						msg = '{} left the room\n'.format(self.users[sender_id][0])
+						#if the user sends quit, we delete his socket, broadcast the leaving message
+						# and send the info to the rest so they can delete him from their list
+						msg = 'USERS(remove):{}'.format(self.users[sender_id][0])
 						self.broadcast(msg,addr)
-						msg2 = 'USERS(remove):{}'.format(self.users[sender_id][0])
 						del self.connections[addr]
+			#if a KeyError occurs, that means that the client socket has already closed the connection
 			except KeyError:
 				break
-
-
-
 
 	def broadcast(self,msg,sender,to=None):
 		if to == None:
